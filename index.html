@@ -3,86 +3,211 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream Player</title>
+    <title>TMDB Video Player with Plyr and HLS</title>
     <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #000;
-            color: #fff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
+        :root {
+            --plyr-font-family: 'Avenir', 'Helvetica Neue', Arial, sans-serif;
+            --plyr-font-size-base: 16px;
         }
-
+        
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+        }
+        
         #player {
             width: 100%;
-            max-width: 800px;
+            aspect-ratio: 16 / 9;
+        }
+
+        #searchResults {
+            list-style-type: none;
+            padding: 0;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+
+        #searchResults li {
+            cursor: pointer;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        #searchResults li:hover {
+            background-color: #f0f0f0;
+        }
+
+        #seasonEpisode, #sourceSelector {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .result-item {
+            display: flex;
+            align-items: center;
+        }
+
+        .result-item img {
+            width: 50px;
+            margin-right: 10px;
         }
     </style>
 </head>
 <body>
-    <video id="player" controls crossorigin playsinline>
-        <source id="videoSource" type="application/x-mpegURL">
-    </video>
+    <div class="container">
+        <h1>TMDB Video Player</h1>
+        <ul id="searchResults"></ul>
+        <div id="seasonEpisode">
+            <input type="number" id="season" placeholder="Season">
+            <input type="number" id="episode" placeholder="Episode">
+            <button onclick="loadSelectedVideo()">Load Episode</button>
+        </div>
+        <div id="sourceSelector">
+            <select id="sourceSelect"></select>
+            <button onclick="changeSource()">Change Source</button>
+        </div>
+        <br><br>
+        <video id="player" controls crossorigin playsinline>
+            <!-- Sources will be dynamically added here -->
+        </video>
+    </div>
 
-    <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const video = document.getElementById('player');
-            const sourceElement = document.getElementById('videoSource');
-
-            // Parse the path from the URL
-            const pathParts = window.location.pathname.split('/').filter(Boolean);
-            const tmdbid = pathParts[0]; // tmdbid
-            const season = pathParts[1] || 1; // Default to season 1 if not provided
-            const episode = pathParts[2] || 1; // Default to episode 1 if not provided
-
-            if (!tmdbid) {
-                alert("tmdbid is required.");
-                return;
-            }
-
-            let apiUrl;
-
-            if (pathParts.length === 1) {
-                // For movies, we just pass the tmdbid without season/episode
-                apiUrl = `https://vidsrc-api-js-gold.vercel.app/vidsrc/${tmdbid}`;
-            } else if (pathParts.length === 3) {
-                // For shows, we pass tmdbid, season, and episode
-                apiUrl = `https://vidsrc-api-js-gold.vercel.app/vidsrc/${tmdbid}?s=${season}&e=${episode}`;
-            }
-
-            fetch(apiUrl)
-                .then(response => response.json())
-                .then(data => {
-                    // Find the first m3u8 stream URL
-                    const streamUrl = data.sources?.find(source => source.isM3U8)?.url;
-
-                    if (streamUrl) {
-                        sourceElement.src = streamUrl;
-
-                        // Initialize the player once the URL is set
-                        const player = new Plyr(video, { fullscreen: { iosNative: true } });
-
-                        // If HLS.js is supported, use it to load the m3u8 stream
-                        if (Hls.isSupported() && !video.canPlayType('application/vnd.apple.mpegurl')) {
-                            const hls = new Hls();
-                            hls.loadSource(streamUrl);
-                            hls.attachMedia(video);
-                            hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                                video.play();
-                            });
-                        }
-                    } else {
-                        console.error('No valid stream URL found');
-                    }
-                })
-                .catch(error => console.error('Error fetching stream URL:', error));
+        let player;
+        let selectedItem;
+        let currentSources = [];
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            initPlyr(document.getElementById('player'));
+            handleURL();
         });
-    </script>
-</body>
-</html>
+
+        function handleURL() {
+            const url = new URL(window.location.href);
+            const pathParts = url.pathname.split('/');
+            
+            if (pathParts[1] === 'movie' && pathParts[2]) {
+                loadVideo(pathParts[2], 'movie');
+            } else if (pathParts[1] === 'tv' && pathParts[2] && pathParts[3] && pathParts[4]) {
+                loadVideo(pathParts[2], 'tv', pathParts[3], pathParts[4]);
+                document.getElementById('season').value = pathParts[3];
+                document.getElementById('episode').value = pathParts[4];
+                document.getElementById('seasonEpisode').style.display = 'block';
+            } else {
+                console.error('Invalid URL format');
+                alert('Invalid URL format. Please check the URL.');
+            }
+        }
+
+        async function loadVideo(id, mediaType, season = null, episode = null) {
+            let url = `https://vidsrc-api-js-gold.vercel.app/vidsrc/${id}`;
+            
+            if (mediaType === 'tv' && season && episode) {
+                url += `?s=${season}&e=${episode}`;
+                document.getElementById('seasonEpisode').style.display = 'block';
+                document.getElementById('sourceSelector').style.display = 'none';
+            } else {
+                document.getElementById('seasonEpisode').style.display = 'none';
+                document.getElementById('sourceSelector').style.display = 'block';
+            }
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                currentSources = data.sources;
+
+                if (currentSources && currentSources.length > 0) {
+                    updateSourceSelector();
+                    loadSource(currentSources[0]);
+
+                    const englishSubtitle = data.subtitles.find(sub => sub.lang === "English");
+                    if (englishSubtitle) {
+                        const track = document.createElement('track');
+                        track.kind = 'captions';
+                        track.label = 'English';
+                        track.srclang = 'en';
+                        track.src = englishSubtitle.url;
+                        track.default = true;
+                        player.media.appendChild(track);
+                    }
+                } else {
+                    console.error('No sources available for this video');
+                    alert('No sources available for this video. Please try another selection.');
+                }
+                
+                updatePoster(data.backdrop_path || data.poster_path);
+                
+           } catch (error) { 
+               console.error('Error loading video:', error); 
+               alert('Error loading video. Please try another selection.'); 
+           } 
+       }
+
+       function updatePoster(imagePath) { 
+           const playerElement =
+           document.getElementById('player'); if
+           (imagePath) { playerElement.poster =
+           `https://image.tmdb.org/t/p/original${imagePath}`; player.load(); // Ensure the poster updates } else { playerElement.poster =
+           'https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-HD.jpg'; player.load(); // Ensure the poster updates } 
+
+           if (player) { 
+               player.poster =
+               playerElement.poster; 
+           } 
+       } 
+
+       function updateSourceSelector() { const sourceSelect
+       = document.getElementById('sourceSelect'); sourceSelect.innerHTML
+       = ''; currentSources.forEach((source, index)
+       => { const option
+       = document.createElement('option'); option.value
+       = index; option.textContent
+       = `Source ${index + 1} (${source.quality})`; sourceSelect.appendChild(option); }); } 
+
+       function changeSource() { const sourceIndex
+       = document.getElementById('sourceSelect').value; if
+       (currentSources[sourceIndex]) { loadSource(currentSources[sourceIndex]); } else
+       { console.error('Invalid source selected'); } } 
+
+       function loadSource(source) { const video
+       = player.media; video.src
+       = ''; if (Hls.isSupported()) { const hls
+       = new Hls(); hls.loadSource(source.url); hls.attachMedia(video); hls.on(Hls.Events.MANIFEST_PARSED,
+       function() { video.play(); }); } else
+       if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src
+       = source.url; video.addEventListener('loadedmetadata',
+       function() { video.play(); }); } else
+       { console.error('HLS is not supported on this browser'); } } 
+
+       function initPlyr(video) { if
+       (player) { player.destroy(); } 
+
+       player =
+           new Plyr(video, { captions:
+       { active:
+       true, update:
+       true, language:
+       'en' }, controls:
+       [ 'play-large', 'play', 'progress', 'current-time', 'mute',
+       'volume', 'captions', 'settings', 'pip', 'airplay',
+       'fullscreen' ], fullscreen:
+   { iosNative:
+   true }, }); 
+
+   player.on('languagechange',
+   () => { setTimeout(() => { if
+   (player.hls) { player.hls.subtitleTrack =
+   player.currentTrack; } }, 50); }); 
+
+   window.player =
+   player; } 
+
+</script> 
+
+</body> 
+
+</html> 
