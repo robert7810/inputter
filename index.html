@@ -21,44 +21,15 @@
             aspect-ratio: 16 / 9;
         }
 
-        #searchResults {
-            list-style-type: none;
-            padding: 0;
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-        }
-
-        #searchResults li {
-            cursor: pointer;
-            padding: 10px;
-            border-bottom: 1px solid #ddd;
-        }
-
-        #searchResults li:hover {
-            background-color: #f0f0f0;
-        }
-
         #seasonEpisode, #sourceSelector {
             display: none;
             margin-top: 10px;
-        }
-
-        .result-item {
-            display: flex;
-            align-items: center;
-        }
-
-        .result-item img {
-            width: 50px;
-            margin-right: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>TMDB Video Player</h1>
-        <ul id="searchResults"></ul>
         <div id="seasonEpisode">
             <input type="number" id="season" placeholder="Season">
             <input type="number" id="episode" placeholder="Episode">
@@ -69,18 +40,15 @@
             <button onclick="changeSource()">Change Source</button>
         </div>
         <br><br>
-        <video id="player" controls crossorigin playsinline>
-            <!-- Sources will be dynamically added here -->
-        </video>
+        <video id="player" controls crossorigin playsinline></video>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
     <script>
         let player;
-        let selectedItem;
         let currentSources = [];
-        
+
         document.addEventListener('DOMContentLoaded', function() {
             initPlyr(document.getElementById('player'));
             handleURL();
@@ -90,13 +58,14 @@
             const url = new URL(window.location.href);
             const pathParts = url.pathname.split('/');
             
-            if (pathParts[1] === 'movie' && pathParts[2]) {
-                loadVideo(pathParts[2], 'movie');
-            } else if (pathParts[1] === 'tv' && pathParts[2] && pathParts[3] && pathParts[4]) {
+            if (pathParts[1] === 'tv' && pathParts[2] && pathParts[3] && pathParts[4]) {
                 loadVideo(pathParts[2], 'tv', pathParts[3], pathParts[4]);
                 document.getElementById('season').value = pathParts[3];
                 document.getElementById('episode').value = pathParts[4];
                 document.getElementById('seasonEpisode').style.display = 'block';
+            } else if (pathParts[1] === 'movie' && pathParts[2]) {
+                loadVideo(pathParts[2], 'movie');
+                document.getElementById('seasonEpisode').style.display = 'none';
             } else {
                 console.error('Invalid URL format');
                 alert('Invalid URL format. Please check the URL.');
@@ -108,10 +77,8 @@
             
             if (mediaType === 'tv' && season && episode) {
                 url += `?s=${season}&e=${episode}`;
-                document.getElementById('seasonEpisode').style.display = 'block';
                 document.getElementById('sourceSelector').style.display = 'none';
             } else {
-                document.getElementById('seasonEpisode').style.display = 'none';
                 document.getElementById('sourceSelector').style.display = 'block';
             }
 
@@ -139,52 +106,44 @@
                     alert('No sources available for this video. Please try another selection.');
                 }
                 
-                updatePoster(data.backdrop_path || data.poster_path);
-                
            } catch (error) { 
                console.error('Error loading video:', error); 
                alert('Error loading video. Please try another selection.'); 
            } 
        }
 
-       function updatePoster(imagePath) { 
-           const playerElement =
-           document.getElementById('player'); if
-           (imagePath) { playerElement.poster =
-           `https://image.tmdb.org/t/p/original${imagePath}`; player.load(); // Ensure the poster updates } else { playerElement.poster =
-           'https://cdn.plyr.io/static/demo/View_From_A_Blue_Moon_Trailer-HD.jpg'; player.load(); // Ensure the poster updates } 
+       function updateSourceSelector() { 
+           const sourceSelect =
+           document.getElementById('sourceSelect'); sourceSelect.innerHTML
+           = ''; currentSources.forEach((source, index)
+           => { const option
+           = document.createElement('option'); option.value
+           = index; option.textContent
+           = `Source ${index + 1} (${source.quality})`; sourceSelect.appendChild(option); }); } 
 
+       function changeSource() { 
+           const sourceIndex =
+           document.getElementById('sourceSelect').value; if
+           (currentSources[sourceIndex]) { loadSource(currentSources[sourceIndex]); } else
+           { console.error('Invalid source selected'); } } 
+
+       function loadSource(source) { 
+           const video =
+           player.media; video.src
+           = ''; if (Hls.isSupported()) { 
+               const hls =
+               new Hls(); hls.loadSource(source.url); hls.attachMedia(video); hls.on(Hls.Events.MANIFEST_PARSED,
+               function() { video.play(); }); } else
+               if (video.canPlayType('application/vnd.apple.mpegurl')) { 
+                   video.src =
+                   source.url; video.addEventListener('loadedmetadata',
+                   function() { video.play(); }); } else
+                   { console.error('HLS is not supported on this browser'); } } 
+
+       function initPlyr(video) { 
            if (player) { 
-               player.poster =
-               playerElement.poster; 
+               player.destroy(); 
            } 
-       } 
-
-       function updateSourceSelector() { const sourceSelect
-       = document.getElementById('sourceSelect'); sourceSelect.innerHTML
-       = ''; currentSources.forEach((source, index)
-       => { const option
-       = document.createElement('option'); option.value
-       = index; option.textContent
-       = `Source ${index + 1} (${source.quality})`; sourceSelect.appendChild(option); }); } 
-
-       function changeSource() { const sourceIndex
-       = document.getElementById('sourceSelect').value; if
-       (currentSources[sourceIndex]) { loadSource(currentSources[sourceIndex]); } else
-       { console.error('Invalid source selected'); } } 
-
-       function loadSource(source) { const video
-       = player.media; video.src
-       = ''; if (Hls.isSupported()) { const hls
-       = new Hls(); hls.loadSource(source.url); hls.attachMedia(video); hls.on(Hls.Events.MANIFEST_PARSED,
-       function() { video.play(); }); } else
-       if (video.canPlayType('application/vnd.apple.mpegurl')) { video.src
-       = source.url; video.addEventListener('loadedmetadata',
-       function() { video.play(); }); } else
-       { console.error('HLS is not supported on this browser'); } } 
-
-       function initPlyr(video) { if
-       (player) { player.destroy(); } 
 
        player =
            new Plyr(video, { captions:
