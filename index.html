@@ -35,24 +35,26 @@
             const video = document.getElementById('player');
             const sourceElement = document.getElementById('videoSource');
 
-            // Parse the path from the URL: /1396/1/1
+            // Parse the path from the URL
             const pathParts = window.location.pathname.split('/').filter(Boolean);
-            if (pathParts.length !== 3) {
-                alert("Invalid URL structure. Expected format: /tmdbid/season/episode.");
+            const tmdbid = pathParts[0]; // tmdbid
+            const season = pathParts[1] || 1; // Default to season 1 if not provided
+            const episode = pathParts[2] || 1; // Default to episode 1 if not provided
+
+            if (!tmdbid) {
+                alert("tmdbid is required.");
                 return;
             }
 
-            const tmdbid = pathParts[0];   // Example: 1396
-            const season = pathParts[1];    // Example: 1
-            const episode = pathParts[2];   // Example: 1
+            let apiUrl;
 
-            if (!tmdbid || !season || !episode) {
-                alert("Missing required parameters: tmdbid, season, or episode.");
-                return;
+            if (pathParts.length === 1) {
+                // For movies, we just pass the tmdbid without season/episode
+                apiUrl = `https://vidsrc-api-js-gold.vercel.app/vidsrc/${tmdbid}`;
+            } else if (pathParts.length === 3) {
+                // For shows, we pass tmdbid, season, and episode
+                apiUrl = `https://vidsrc-api-js-gold.vercel.app/vidsrc/${tmdbid}?s=${season}&e=${episode}`;
             }
-
-            // Fetch the stream URL from the VidSrc API
-            const apiUrl = `https://vidsrc-api-js-gold.vercel.app/vidsrc/${tmdbid}?s=${season}&e=${episode}`;
 
             fetch(apiUrl)
                 .then(response => response.json())
