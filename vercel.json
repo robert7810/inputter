@@ -1,19 +1,7 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "index.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/:tmdbid/:season/:episode",
-      "dest": "/index.html"
-    },
-    {
-      "src": "/:tmdbid",
-      "dest": "/index.html"
-    }
+  "rewrites": [
+    { "source": "/imdb/:id", "destination": "/index.html" },
+    { "source": "/tv/:id/:season/:episode", "destination": "/index.html" },
+    { "source": "/movie/:id", "destination": "/index.html" }
   ]
 }
